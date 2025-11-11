@@ -1,6 +1,5 @@
 const Media = require('../models/Media');
-const fs = require('fs');
-const path = require('path');
+const cloudinary = require('../config/cloudinary');
 
 // Upload media files
 exports.uploadMedia = async (req, res) => {
@@ -22,7 +21,8 @@ exports.uploadMedia = async (req, res) => {
           originalName: file.originalname,
           mimetype: file.mimetype,
           size: file.size,
-          path: file.path,
+          cloudinaryUrl: file.path,
+          cloudinaryPublicId: file.filename,
           uploader: uploader,
           message: message
         });
@@ -40,6 +40,7 @@ exports.uploadMedia = async (req, res) => {
           filename: file.filename,
           originalName: file.originalName,
           size: file.size,
+          cloudinaryUrl: file.cloudinaryUrl,
           uploadedAt: file.uploadedAt
         }))
       }
@@ -48,12 +49,10 @@ exports.uploadMedia = async (req, res) => {
   } catch (error) {
     console.error('Upload error:', error);
     
-    // Clean up uploaded files if there's an error
+    // Clean up uploaded files from Cloudinary if there's an error
     if (req.files) {
       req.files.forEach(file => {
-        if (fs.existsSync(file.path)) {
-          fs.unlinkSync(file.path);
-        }
+        cloudinary.uploader.destroy(file.filename);
       });
     }
 
@@ -100,7 +99,7 @@ exports.getAllMedia = async (req, res) => {
   }
 };
 
-// Serve media files
+// Serve media files by redirecting to Cloudinary URL
 exports.serveMedia = async (req, res) => {
   try {
     const media = await Media.findById(req.params.id);
@@ -112,17 +111,7 @@ exports.serveMedia = async (req, res) => {
       });
     }
 
-    const filePath = path.join(__dirname, '../uploads', media.filename);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        success: false,
-        message: 'File not found'
-      });
-    }
-
-    res.setHeader('Content-Type', media.mimetype);
-    res.sendFile(filePath);
+    res.redirect(media.cloudinaryUrl);
   } catch (error) {
     console.error('Serve media error:', error);
     res.status(500).json({
@@ -144,11 +133,8 @@ exports.deleteMedia = async (req, res) => {
       });
     }
 
-    // Delete file from filesystem
-    const filePath = path.join(__dirname, '../uploads', media.filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    // Delete file from Cloudinary
+    await cloudinary.uploader.destroy(media.cloudinaryPublicId);
 
     // Delete from database
     await Media.findByIdAndDelete(req.params.id);

@@ -19,6 +19,14 @@ const mediaSchema = new mongoose.Schema({
   },
   path: {
     type: String,
+    required: false
+  },
+  cloudinaryUrl: {
+    type: String,
+    required: true
+  },
+  cloudinaryPublicId: {
+    type: String,
     required: true
   },
   uploader: {
